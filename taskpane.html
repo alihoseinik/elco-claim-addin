@@ -23,6 +23,9 @@
   .facts { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin-top:6px; }
   .facts .k, .row .k { font-size:11px; color:var(--muted); }
   .facts .v { font-weight:600; word-break:break-word; }
+  .facts .wide { grid-column:1 / -1; }
+  .facts.top { margin-top:0; padding-bottom:8px; border-bottom:1px solid var(--line); margin-bottom:6px; }
+  .facts .v .pill { margin:0; }
   .text { white-space:pre-wrap; word-break:break-word; }
   .row { border-bottom:1px solid var(--line); padding:6px 0; }
   .mono { font-family:Consolas, "Courier New", monospace; font-size:11.5px; word-break:break-all; }
@@ -159,6 +162,23 @@
   }
 
   // ---------- case card ----------
+  var FOLDERS = {
+    "00": "00 Reklamationen", "01": "01 EGT/Verwaltungswechsel", "02": "02 Kündigungen",
+    "03": "03 Offerten/Bestätigungen", "04": "04 Wartungsvertrag", "05": "05 Adressänderungen",
+    "06": "06 Postretouren", "07": "07 RG-Ablehnungen", "08": "08 Diverses", "99": "99 weitergel. Mails"
+  };
+  function folderName(v) {
+    if (!has(v)) return "–";
+    var m = String(v).trim().match(/^(\d{2})/);
+    return (m && FOLDERS[m[1]]) ? FOLDERS[m[1]] : String(v).replace(/_/g, " ");
+  }
+  var LANGS = { de: "German", fr: "French", it: "Italian", en: "English" };
+  function languageName(v) {
+    if (!has(v)) return "–";
+    var k = String(v).trim().toLowerCase().slice(0, 2);
+    return LANGS[k] ? LANGS[k] + " (" + String(v).trim() + ")" : String(v);
+  }
+
   function urgencyClass(u) {
     u = String(u || "").toLowerCase();
     if (u === "urgent") return "bad"; if (u === "high") return "warn"; if (u === "medium") return "info"; return "grey";
@@ -183,9 +203,11 @@
 
   function renderReady(c) {
     var h = '<div class="card">';
-    h += '<div><span class="pill ' + urgencyClass(c.urgency) + '">' + esc(c.urgency || "No urgency") + "</span>" +
-         (has(c.cluster) ? '<span class="pill grey">' + esc(c.cluster) + "</span>" : "") +
-         (has(c.language) ? '<span class="pill grey">' + esc(c.language) + "</span>" : "") + "</div>";
+    h += '<div class="facts top">' +
+         '<div><div class="k">Urgency</div><div class="v"><span class="pill ' + urgencyClass(c.urgency) + '">' + esc(c.urgency || "–") + "</span></div></div>" +
+         '<div><div class="k">Language</div><div class="v">' + esc(languageName(c.language)) + "</div></div>" +
+         '<div class="wide"><div class="k">Folder</div><div class="v">' + esc(folderName(c.cluster)) + "</div></div>" +
+         "</div>";
     h += '<div class="facts">' +
          '<div><div class="k">Customer no.</div><div class="v">' + esc(c.customerNumber || "–") + "</div></div>" +
          '<div><div class="k">Contract no.</div><div class="v">' + esc(c.contractNumber || "–") + "</div></div>" +
