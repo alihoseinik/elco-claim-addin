@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claim Case Lookup (Test)</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  :root { --red:#c8102e; --ink:#1f1f1f; --muted:#666; --line:#e3e3e3; --ok:#107c10; --bad:#a4262c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:13px/1.45 "Segoe UI", system-ui, sans-serif; color:var(--ink); background:#fff; }
+  header { background:var(--red); color:#fff; padding:10px 12px; }
+  header h1 { margin:0; font-size:15px; font-weight:600; }
+  header p { margin:2px 0 0; font-size:11px; opacity:.85; }
+  main { padding:10px 12px 20px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:16px 0 6px; }
+  .row { border-bottom:1px solid var(--line); padding:6px 0; }
+  .k { font-size:11px; color:var(--muted); }
+  .v { font-family:Consolas, "Courier New", monospace; font-size:11.5px; word-break:break-all; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+  .pill.ok { background:#dff6dd; color:var(--ok); }
+  .pill.bad { background:#fde7e9; color:var(--bad); }
+  button { font:inherit; padding:6px 12px; border:1px solid var(--red); background:var(--red); color:#fff; border-radius:3px; cursor:pointer; }
+  button.secondary { background:#fff; color:var(--red); }
+  button:disabled { opacity:.5; cursor:default; }
+  input { width:100%; font:inherit; padding:5px 6px; border:1px solid #bbb; border-radius:3px; }
+  .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  #msg { margin-top:8px; font-size:12px; min-height:1em; }
+  pre { background:#f6f6f6; padding:8px; font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:220px; overflow:auto; }
+  details summary { cursor:pointer; color:var(--muted); font-size:12px; margin-top:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Claim Case Lookup</h1>
+  <p>Test build · shows how the open email can be identified exactly</p>
+</header>
+<main>
+  <div id="status" class="row"><span class="pill bad">Waiting for Outlook…</span></div>
+
+  <h2>This email</h2>
+  <div id="email"></div>
+
+  <h2>Identifiers for the workflow</h2>
+  <div id="ids"></div>
+
+  <div class="actions">
+    <button id="copyBtn" disabled>Copy as JSON</button>
+  </div>
+  <div id="msg"></div>
+
+  <details>
+    <summary>Optional: send to a Power Automate flow (step 2)</summary>
+    <p class="k">Paste the URL of a flow that starts with "When an HTTP request is received". It is saved only in your mailbox settings.</p>
+    <input id="flowUrl" placeholder="https://…/workflows/…/triggers/manual/paths/invoke…">
+    <div class="actions">
+      <button id="saveUrlBtn" class="secondary">Save URL</button>
+      <button id="sendBtn" disabled>Send this email to flow</button>
+    </div>
+    <pre id="flowResult" hidden></pre>
+  </details>
+
+  <details>
+    <summary>Diagnostics</summary>
+    <pre id="diag"></pre>
+  </details>
+</main>
+
+<script>
+(function () {
+  var payload = null;
+
+  function el(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function row(k, v) { return '<div class="row"><div class="k">' + esc(k) + '</div><div class="v">' + (v === undefined || v === null || v === "" ? "<em>–</em>" : esc(v)) + "</div></div>"; }
+  function say(t, ok) { var m = el("msg"); m.textContent = t; m.style.color = ok === false ? "var(--bad)" : "var(--ok)"; }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(function () { return fallbackCopy(text); });
+    }
+    return Promise.resolve(fallbackCopy(text));
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } finally { document.body.removeChild(ta); }
+  }
+
+  function supported(v) {
+    try { return Office.context.requirements.isSetSupported("Mailbox", v); } catch (e) { return false; }
+  }
+
+  function getShared(item) {
+    return new Promise(function (resolve) {
+      if (item && typeof item.getSharedPropertiesAsync === "function") {
+        item.getSharedPropertiesAsync(function (r) {
+          resolve(r.status === Office.AsyncResultStatus.Succeeded ? r.value : { error: r.error && r.error.message });
+        });
+      } else {
+        resolve(null);
+      }
+    });
+  }
+
+  function render() {
+    var mb = Office.context.mailbox;
+    var item = mb.item;
+    if (!item) { el("status").innerHTML = '<span class="pill bad">No email selected</span>'; return; }
+
+    var ewsId = item.itemId;
+    var restId = null;
+    try {
+      if (ewsId && mb.convertToRestId) restId = mb.convertToRestId(ewsId, Office.MailboxEnums.RestVersion.v2_0);
+    } catch (e) { restId = "convert failed: " + e.message; }
+
+    getShared(item).then(function (shared) {
+      var from = item.from ? (item.from.displayName + " <" + item.from.emailAddress + ">") : "";
+      var mailbox = shared && shared.targetMailbox ? shared.targetMailbox : mb.userProfile.emailAddress;
+      var atts = (item.attachments || []).map(function (a) { return a.name + (a.isInline ? " (inline)" : ""); });
+
+      payload = {
+        mailbox: mailbox,
+        isSharedMailbox: !!(shared && shared.targetMailbox),
+        openedBy: mb.userProfile.emailAddress,
+        restId: restId,
+        ewsItemId: ewsId,
+        internetMessageId: item.internetMessageId || null,
+        conversationId: item.conversationId || null,
+        subject: item.subject,
+        from: item.from ? item.from.emailAddress : null,
+        received: item.dateTimeCreated ? item.dateTimeCreated.toISOString() : null,
+        attachments: atts
+      };
+
+      el("status").innerHTML = '<span class="pill ok">Connected · ' + esc(mb.diagnostics.hostName) + "</span>" +
+        (payload.isSharedMailbox ? ' <span class="pill ok">Shared mailbox</span>' : "");
+
+      el("email").innerHTML =
+        row("Subject", item.subject) +
+        row("From", from) +
+        row("Received", item.dateTimeCreated ? item.dateTimeCreated.toLocaleString() : "") +
+        row("Mailbox", mailbox) +
+        row("Attachments (" + atts.length + ")", atts.join(", "));
+
+      el("ids").innerHTML =
+        row("REST / Graph ID (use this in the flow)", restId) +
+        row("internetMessageId", payload.internetMessageId) +
+        row("conversationId", payload.conversationId) +
+        row("EWS itemId", ewsId);
+
+      el("copyBtn").disabled = false;
+      el("sendBtn").disabled = !el("flowUrl").value;
+
+      var sets = ["1.1","1.3","1.5","1.8","1.10","1.13","1.15"].map(function (v) { return v + ":" + (supported(v) ? "yes" : "no"); }).join("  ");
+      el("diag").textContent =
+        "Host: " + mb.diagnostics.hostName + " " + mb.diagnostics.hostVersion + "\n" +
+        "Platform: " + Office.context.diagnostics.platform + "\n" +
+        "Mailbox API sets: " + sets + "\n" +
+        "Shared properties: " + JSON.stringify(shared) + "\n" +
+        "Graph URL: " + mb.restUrl;
+    });
+  }
+
+  Office.onReady(function (info) {
+    if (info.host !== Office.HostType.Outlook) {
+      el("status").innerHTML = '<span class="pill bad">Open this inside Outlook</span>';
+      return;
+    }
+    try {
+      var saved = Office.context.roamingSettings.get("flowUrl");
+      if (saved) el("flowUrl").value = saved;
+    } catch (e) {}
+
+    render();
+
+    // Re-render when the user selects another email while the pane is pinned
+    try {
+      Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, function () { say(""); el("flowResult").hidden = true; render(); });
+    } catch (e) {}
+
+    el("copyBtn").onclick = function () {
+      copyText(JSON.stringify(payload, null, 2)).then(function () { say("Copied."); });
+    };
+
+    el("flowUrl").oninput = function () { el("sendBtn").disabled = !this.value || !payload; };
+
+    el("saveUrlBtn").onclick = function () {
+      var rs = Office.context.roamingSettings;
+      rs.set("flowUrl", el("flowUrl").value.trim());
+      rs.saveAsync(function (r) { say(r.status === Office.AsyncResultStatus.Succeeded ? "URL saved." : "Could not save URL.", r.status === Office.AsyncResultStatus.Succeeded); });
+    };
+
+    el("sendBtn").onclick = function () {
+      var url = el("flowUrl").value.trim();
+      var out = el("flowResult");
+      el("sendBtn").disabled = true; say("Sending…");
+      fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        .then(function (r) { return r.text().then(function (t) { return { status: r.status, text: t }; }); })
+        .then(function (res) {
+          out.hidden = false;
+          var body = res.text;
+          try { body = JSON.stringify(JSON.parse(res.text), null, 2); } catch (e) {}
+          out.textContent = "HTTP " + res.status + "\n\n" + body;
+          say(res.status < 300 ? "Flow answered." : "Flow returned an error.", res.status < 300);
+        })
+        .catch(function (e) { out.hidden = false; out.textContent = String(e); say("Request failed (network or CORS).", false); })
+        .then(function () { el("sendBtn").disabled = false; });
+    };
+  });
+})();
+</script>
+</body>
+</html>
