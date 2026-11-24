@@ -51,6 +51,11 @@
   @keyframes spin { to { transform:rotate(360deg); } }
   .notice { border-radius:4px; padding:7px 9px; font-size:12px; margin-bottom:8px; }
   .notice.warn { background:var(--warnbg); color:var(--warn); } .notice.bad { background:var(--badbg); color:var(--bad); }
+  .feedback { border-top:1px solid var(--line); margin-top:14px; }
+  .feedback select, .feedback textarea { width:100%; font:inherit; padding:5px 6px; border:1px solid #bbb; border-radius:3px; background:#fff; margin:3px 0 6px; }
+  .feedback textarea { resize:vertical; }
+  .feedback .hint { margin:0 0 8px; font-size:11.5px; }
+  #fbMsg { min-height:1em; margin-top:6px; font-size:12px; }
   .footer { margin-top:10px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
 </style>
 </head>
@@ -76,6 +81,8 @@
     <summary>Settings</summary>
     <p class="muted">URL of the "Claim Lookup API (Add-in)" flow (trigger "When an HTTP request is received"). Saved only in your mailbox settings.</p>
     <input id="flowUrl" placeholder="https://…/workflows/…/triggers/manual/paths/invoke…">
+    <p class="muted">URL of the "Claim Feedback (Add-in)" flow, used by the Feedback section.</p>
+    <input id="feedbackUrl" placeholder="https://…/workflows/…/triggers/manual/paths/invoke…">
     <div class="actions"><button id="saveUrlBtn">Save and analyse</button></div>
   </details>
 
@@ -111,6 +118,10 @@
     ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
     document.body.appendChild(ta); ta.select();
     try { document.execCommand("copy"); } finally { document.body.removeChild(ta); }
+  }
+
+  function getFeedbackUrl() {
+    try { return Office.context.roamingSettings.get("feedbackUrl") || ""; } catch (e) { return ""; }
   }
 
   function getFlowUrl() {
@@ -171,6 +182,8 @@
     "03": "03 Offerten/Bestätigungen", "04": "04 Wartungsvertrag", "05": "05 Adressänderungen",
     "06": "06 Postretouren", "07": "07 RG-Ablehnungen", "08": "08 Diverses", "99": "99 weitergel. Mails"
   };
+  var FOLDER_ORDER = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "99"];
+  function folderCodeOf(v) { var m = String(v || "").trim().match(/^(\d{2})/); return m ? m[1] : ""; }
   function folderName(v) {
     if (!has(v)) return "–";
     var m = String(v).trim().match(/^(\d{2})/);
@@ -248,6 +261,7 @@
     h += section("Conversation history", c.conversationHistory);
     h += section("Confirmations", c.confirmationsSummary);
     h += section("Note for the reply", c.historyNote);
+    h += feedbackHtml(c);
     h += '<div class="footer"><span>Case #' + esc(c.caseId) + " · analysed " + esc(fmtDate(c.processedAt)) +
          (age !== null ? " (" + esc(ageText(age)) + ")" : "") + "</span>" +
          '<button id="rerunBtn" class="secondary">Re-run analysis</button></div>';
@@ -257,6 +271,65 @@
     var cr = el("copyReplyBtn");
     if (cr) cr.onclick = function () { copyText(c.suggestedReply).then(function () { say("Reply copied."); }); };
     el("rerunBtn").onclick = function () { analyse(true); };
+    wireFeedback(c);
+  }
+
+  // ---------- feedback ----------
+  function feedbackHtml(c) {
+    var assigned = folderCodeOf(c.cluster);
+    var given = has(c.correctFolder);
+    var h = '<div class="feedback"><h2>Feedback</h2>';
+    if (given) {
+      var agreed = folderCodeOf(c.correctFolder) === assigned;
+      h += '<div id="fbSaved"><span class="pill ' + (agreed ? "ok" : "warn") + '">' + (agreed ? "Folder confirmed" : "Folder corrected") + "</span>" +
+           '<div class="text"><strong>' + esc(folderName(c.correctFolder)) + "</strong></div>" +
+           (has(c.feedbackComment) ? '<div class="text muted">' + esc(c.feedbackComment) + "</div>" : "") +
+           '<div class="actions"><button id="fbEditBtn" class="secondary">Change feedback</button></div></div>';
+    }
+    var preset = given ? folderCodeOf(c.correctFolder) : assigned;
+    var opts = FOLDER_ORDER.map(function (k) {
+      return '<option value="' + k + '"' + (k === preset ? " selected" : "") + ">" + esc(FOLDERS[k]) + (k === assigned ? "  (assigned)" : "") + "</option>";
+    }).join("");
+    h += '<div id="fbForm"' + (given ? ' hidden' : "") + '>' +
+         '<label class="k" for="fbFolder">Correct folder for this email</label>' +
+         '<select id="fbFolder">' + (preset ? "" : '<option value="" selected>Choose a folder…</option>') + opts + "</select>" +
+         '<p class="muted hint">Keep the assigned folder if it is right; choose another one if it is wrong.</p>' +
+         '<label class="k" for="fbComment">Comment (optional)</label>' +
+         '<textarea id="fbComment" rows="3" placeholder="What was right or wrong in this analysis?"></textarea>' +
+         '<div class="actions"><button id="fbSendBtn">Send feedback</button></div>' +
+         '<div id="fbMsg" class="muted"></div></div></div>';
+    return h;
+  }
+
+  function wireFeedback(c) {
+    var edit = el("fbEditBtn");
+    if (edit) edit.onclick = function () { el("fbForm").hidden = false; el("fbSaved").hidden = true; };
+    el("fbSendBtn").onclick = function () { sendFeedback(c); };
+  }
+
+  function sendFeedback(c) {
+    var url = getFeedbackUrl(), msg = el("fbMsg"), btn = el("fbSendBtn");
+    var code = el("fbFolder").value;
+    if (!url) { msg.style.color = "var(--bad)"; msg.textContent = "Feedback URL not set. Open Settings below and paste it."; el("settingsBox").open = true; return; }
+    if (!code) { msg.style.color = "var(--bad)"; msg.textContent = "Choose the correct folder first."; return; }
+    btn.disabled = true; msg.style.color = "var(--muted)"; msg.innerHTML = '<span class="spinner"></span>Saving…';
+    var req = { mailbox: payload.mailbox, internetMessageId: payload.internetMessageId, caseId: c.caseId,
+                correctFolder: FOLDERS[code] || code, comment: el("fbComment").value.trim(), user: payload.openedBy };
+    fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) })
+      .then(function (r) { return r.text().then(function (t) { var d = {}; try { d = JSON.parse(t); } catch (e) {} lastResponse = { http: r.status, body: d || t }; updateDiag(); return { http: r.status, data: d || {} }; }); })
+      .then(function (res) {
+        if (res.http === 200 && String(res.data.status).toLowerCase() === "saved") {
+          c.correctFolder = res.data.correctFolder; c.feedbackComment = res.data.feedbackComment;
+          var box = document.querySelector(".feedback");
+          box.outerHTML = feedbackHtml(c);
+          wireFeedback(c);
+          say("Thank you, your feedback was saved.");
+        } else {
+          btn.disabled = false; msg.style.color = "var(--bad)";
+          msg.textContent = (res.data && res.data.error) ? (res.data.error.message || res.data.error) : ("Could not save feedback (HTTP " + res.http + ").");
+        }
+      })
+      .catch(function (e) { btn.disabled = false; msg.style.color = "var(--bad)"; msg.textContent = "Could not reach the feedback flow: " + e.message; });
   }
 
   function renderProcessing(polls) {
@@ -372,7 +445,7 @@
       "Host: " + mb.diagnostics.hostName + " " + mb.diagnostics.hostVersion + "\n" +
       "Platform: " + Office.context.diagnostics.platform + "\n" +
       "Mailbox API sets: " + sets + "\n" +
-      "Flow URL set: " + (getFlowUrl() ? "yes" : "no") + "\n\n" +
+      "Flow URL set: " + (getFlowUrl() ? "yes" : "no") + "  ·  Feedback URL set: " + (getFeedbackUrl() ? "yes" : "no") + "\n\n" +
       "Last flow response:\n" + (lastResponse ? JSON.stringify(lastResponse, null, 2) : "–");
   }
 
@@ -395,11 +468,13 @@
       return;
     }
     el("flowUrl").value = getFlowUrl();
+    el("feedbackUrl").value = getFeedbackUrl();
 
     el("copyBtn").onclick = function () { copyText(JSON.stringify(payload, null, 2)).then(function () { say("IDs copied."); }); };
     el("saveUrlBtn").onclick = function () {
       var rs = Office.context.roamingSettings;
       rs.set("flowUrl", el("flowUrl").value.trim());
+      rs.set("feedbackUrl", el("feedbackUrl").value.trim());
       rs.saveAsync(function (r) {
         var good = r.status === Office.AsyncResultStatus.Succeeded;
         say(good ? "URL saved." : "Could not save URL.", good);
