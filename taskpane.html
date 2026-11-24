@@ -3,61 +3,74 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claim Case Lookup (Test)</title>
+<title>Claim Case Lookup</title>
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <style>
-  :root { --red:#c8102e; --ink:#1f1f1f; --muted:#666; --line:#e3e3e3; --ok:#107c10; --bad:#a4262c; }
+  :root { --red:#c8102e; --ink:#1f1f1f; --muted:#666; --line:#e6e6e6; --soft:#f6f6f6;
+          --ok:#107c10; --okbg:#dff6dd; --bad:#a4262c; --badbg:#fde7e9; --warn:#8a5a00; --warnbg:#fff4ce; --info:#005a9e; --infobg:#deecf9; }
   * { box-sizing:border-box; }
   body { margin:0; font:13px/1.45 "Segoe UI", system-ui, sans-serif; color:var(--ink); background:#fff; }
   header { background:var(--red); color:#fff; padding:10px 12px; }
   header h1 { margin:0; font-size:15px; font-weight:600; }
   header p { margin:2px 0 0; font-size:11px; opacity:.85; }
-  main { padding:10px 12px 20px; }
-  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:16px 0 6px; }
+  main { padding:10px 12px 24px; }
+  h2 { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:16px 0 6px; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; margin:0 4px 4px 0; }
+  .ok { background:var(--okbg); color:var(--ok); } .bad { background:var(--badbg); color:var(--bad); }
+  .warn { background:var(--warnbg); color:var(--warn); } .info { background:var(--infobg); color:var(--info); }
+  .grey { background:#eee; color:#444; }
+  .card { border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-top:8px; }
+  .facts { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin-top:6px; }
+  .facts .k, .row .k { font-size:11px; color:var(--muted); }
+  .facts .v { font-weight:600; word-break:break-word; }
+  .text { white-space:pre-wrap; word-break:break-word; }
   .row { border-bottom:1px solid var(--line); padding:6px 0; }
-  .k { font-size:11px; color:var(--muted); }
-  .v { font-family:Consolas, "Courier New", monospace; font-size:11.5px; word-break:break-all; }
-  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; }
-  .pill.ok { background:#dff6dd; color:var(--ok); }
-  .pill.bad { background:#fde7e9; color:var(--bad); }
+  .mono { font-family:Consolas, "Courier New", monospace; font-size:11.5px; word-break:break-all; }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  th, td { text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; background:var(--soft); }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  td.nowrap { white-space:nowrap; }
+  .sub { font-size:10.5px; color:var(--muted); margin-top:2px; }
+  .tablewrap { overflow-x:auto; }
   button { font:inherit; padding:6px 12px; border:1px solid var(--red); background:var(--red); color:#fff; border-radius:3px; cursor:pointer; }
   button.secondary { background:#fff; color:var(--red); }
   button:disabled { opacity:.5; cursor:default; }
   input { width:100%; font:inherit; padding:5px 6px; border:1px solid #bbb; border-radius:3px; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .muted { color:var(--muted); font-size:12px; }
   #msg { margin-top:8px; font-size:12px; min-height:1em; }
-  pre { background:#f6f6f6; padding:8px; font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:220px; overflow:auto; }
-  details summary { cursor:pointer; color:var(--muted); font-size:12px; margin-top:14px; }
+  pre { background:var(--soft); padding:8px; font-size:11px; white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto; margin:6px 0 0; }
+  details { margin-top:12px; }
+  details summary { cursor:pointer; color:var(--muted); font-size:12px; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid #ddd; border-top-color:var(--red); border-radius:50%; animation:spin 0.9s linear infinite; vertical-align:-2px; margin-right:6px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .footer { margin-top:10px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
 </style>
 </head>
 <body>
 <header>
   <h1>Claim Case Lookup</h1>
-  <p>Test build · shows how the open email can be identified exactly</p>
+  <p>Case analysis for the open email</p>
 </header>
 <main>
-  <div id="status" class="row"><span class="pill bad">Waiting for Outlook…</span></div>
+  <div id="status"><span class="pill bad">Waiting for Outlook…</span></div>
 
-  <h2>This email</h2>
-  <div id="email"></div>
-
-  <h2>Identifiers for the workflow</h2>
-  <div id="ids"></div>
-
-  <div class="actions">
-    <button id="copyBtn" disabled>Copy as JSON</button>
-  </div>
+  <div id="case"></div>
   <div id="msg"></div>
 
-  <details>
-    <summary>Optional: send to a Power Automate flow (step 2)</summary>
-    <p class="k">Paste the URL of a flow that starts with "When an HTTP request is received". It is saved only in your mailbox settings.</p>
+  <details id="emailBox">
+    <summary>Email and identifiers</summary>
+    <div id="email"></div>
+    <div id="ids"></div>
+    <div class="actions"><button id="copyBtn" class="secondary" disabled>Copy IDs as JSON</button></div>
+  </details>
+
+  <details id="settingsBox">
+    <summary>Settings</summary>
+    <p class="muted">URL of the "Claim Lookup API (Add-in)" flow (trigger "When an HTTP request is received"). Saved only in your mailbox settings.</p>
     <input id="flowUrl" placeholder="https://…/workflows/…/triggers/manual/paths/invoke…">
-    <div class="actions">
-      <button id="saveUrlBtn" class="secondary">Save URL</button>
-      <button id="sendBtn" disabled>Send this email to flow</button>
-    </div>
-    <pre id="flowResult" hidden></pre>
+    <div class="actions"><button id="saveUrlBtn">Save and analyse</button></div>
   </details>
 
   <details>
@@ -68,18 +81,23 @@
 
 <script>
 (function () {
-  var payload = null;
+  var payload = null;      // identifiers of the open email
+  var runToken = 0;        // increases when the selected email changes; stops old polling
+  var lastResponse = null;
+  var POLL_MS = 6000, MAX_POLLS = 50;
 
   function el(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function row(k, v) { return '<div class="row"><div class="k">' + esc(k) + '</div><div class="v">' + (v === undefined || v === null || v === "" ? "<em>–</em>" : esc(v)) + "</div></div>"; }
-  function say(t, ok) { var m = el("msg"); m.textContent = t; m.style.color = ok === false ? "var(--bad)" : "var(--ok)"; }
+  function has(v) { return !(v === undefined || v === null || String(v).trim() === ""); }
+  function row(k, v, mono) { return '<div class="row"><div class="k">' + esc(k) + '</div><div class="' + (mono ? "mono" : "text") + '">' + (has(v) ? esc(v) : "<em>–</em>") + "</div></div>"; }
+  function say(t, good) { var m = el("msg"); m.textContent = t || ""; m.style.color = good === false ? "var(--bad)" : "var(--ok)"; }
+  function fmtDate(v) { if (!has(v)) return ""; var d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString(); }
 
   function copyText(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(text).catch(function () { return fallbackCopy(text); });
+      return navigator.clipboard.writeText(text).catch(function () { fallbackCopy(text); });
     }
-    return Promise.resolve(fallbackCopy(text));
+    fallbackCopy(text); return Promise.resolve();
   }
   function fallbackCopy(text) {
     var ta = document.createElement("textarea");
@@ -88,78 +106,215 @@
     try { document.execCommand("copy"); } finally { document.body.removeChild(ta); }
   }
 
-  function supported(v) {
-    try { return Office.context.requirements.isSetSupported("Mailbox", v); } catch (e) { return false; }
+  function getFlowUrl() {
+    try { return Office.context.roamingSettings.get("flowUrl") || ""; } catch (e) { return ""; }
   }
 
+  // ---------- reading the open email ----------
   function getShared(item) {
     return new Promise(function (resolve) {
       if (item && typeof item.getSharedPropertiesAsync === "function") {
         item.getSharedPropertiesAsync(function (r) {
-          resolve(r.status === Office.AsyncResultStatus.Succeeded ? r.value : { error: r.error && r.error.message });
+          resolve(r.status === Office.AsyncResultStatus.Succeeded ? r.value : null);
         });
-      } else {
-        resolve(null);
-      }
+      } else { resolve(null); }
     });
   }
 
-  function render() {
-    var mb = Office.context.mailbox;
-    var item = mb.item;
-    if (!item) { el("status").innerHTML = '<span class="pill bad">No email selected</span>'; return; }
-
-    var ewsId = item.itemId;
+  function readEmail() {
+    var mb = Office.context.mailbox, item = mb.item;
+    if (!item) return Promise.resolve(null);
     var restId = null;
-    try {
-      if (ewsId && mb.convertToRestId) restId = mb.convertToRestId(ewsId, Office.MailboxEnums.RestVersion.v2_0);
-    } catch (e) { restId = "convert failed: " + e.message; }
-
-    getShared(item).then(function (shared) {
-      var from = item.from ? (item.from.displayName + " <" + item.from.emailAddress + ">") : "";
-      var mailbox = shared && shared.targetMailbox ? shared.targetMailbox : mb.userProfile.emailAddress;
+    try { if (item.itemId) restId = mb.convertToRestId(item.itemId, Office.MailboxEnums.RestVersion.v2_0); } catch (e) {}
+    return getShared(item).then(function (shared) {
       var atts = (item.attachments || []).map(function (a) { return a.name + (a.isInline ? " (inline)" : ""); });
-
-      payload = {
-        mailbox: mailbox,
+      return {
+        mailbox: (shared && shared.targetMailbox) ? shared.targetMailbox : mb.userProfile.emailAddress,
         isSharedMailbox: !!(shared && shared.targetMailbox),
         openedBy: mb.userProfile.emailAddress,
         restId: restId,
-        ewsItemId: ewsId,
+        ewsItemId: item.itemId,
         internetMessageId: item.internetMessageId || null,
         conversationId: item.conversationId || null,
         subject: item.subject,
         from: item.from ? item.from.emailAddress : null,
+        fromName: item.from ? item.from.displayName : null,
         received: item.dateTimeCreated ? item.dateTimeCreated.toISOString() : null,
         attachments: atts
       };
+    });
+  }
 
-      el("status").innerHTML = '<span class="pill ok">Connected · ' + esc(mb.diagnostics.hostName) + "</span>" +
-        (payload.isSharedMailbox ? ' <span class="pill ok">Shared mailbox</span>' : "");
+  function renderEmail(p) {
+    el("status").innerHTML = '<span class="pill ok">Connected · ' + esc(Office.context.mailbox.diagnostics.hostName) + "</span>" +
+      (p.isSharedMailbox ? '<span class="pill ok">Shared mailbox</span>' : "");
+    el("email").innerHTML =
+      row("Subject", p.subject) + row("From", (p.fromName || "") + " <" + (p.from || "") + ">") +
+      row("Received", fmtDate(p.received)) + row("Mailbox", p.mailbox) +
+      row("Attachments (" + p.attachments.length + ")", p.attachments.join(", "));
+    el("ids").innerHTML =
+      row("REST / Graph ID", p.restId, true) + row("internetMessageId", p.internetMessageId, true) +
+      row("conversationId", p.conversationId, true);
+    el("copyBtn").disabled = false;
+  }
 
-      el("email").innerHTML =
-        row("Subject", item.subject) +
-        row("From", from) +
-        row("Received", item.dateTimeCreated ? item.dateTimeCreated.toLocaleString() : "") +
-        row("Mailbox", mailbox) +
-        row("Attachments (" + atts.length + ")", atts.join(", "));
+  // ---------- case card ----------
+  function urgencyClass(u) {
+    u = String(u || "").toLowerCase();
+    if (u === "urgent") return "bad"; if (u === "high") return "warn"; if (u === "medium") return "info"; return "grey";
+  }
 
-      el("ids").innerHTML =
-        row("REST / Graph ID (use this in the flow)", restId) +
-        row("internetMessageId", payload.internetMessageId) +
-        row("conversationId", payload.conversationId) +
-        row("EWS itemId", ewsId);
+  function invoicesTable(list) {
+    if (!list || !list.length) return '<p class="muted">No invoices found for this customer or equipment.</p>';
+    var h = '<div class="tablewrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Type</th><th class="num">Amount</th></tr></thead><tbody>';
+    list.forEach(function (r) {
+      var extra = [];
+      if (has(r.confirmation)) extra.push("Confirmation: " + r.confirmation);
+      var period = [r.contractFrom, r.contractTo].filter(has).join(" – ");
+      if (period) extra.push("Contract: " + period);
+      h += "<tr><td>" + esc(r.invoice) + (r.isCreditNote ? ' <span class="pill info">Credit</span>' : "") + '</td><td class="nowrap">' + esc(r.invoiceDate) +
+           "</td><td>" + esc(r.invoiceType) + (extra.length ? '<div class="sub">' + esc(extra.join(" · ")) + "</div>" : "") +
+           '</td><td class="num">' + esc(r.totalAmount) + "</td></tr>";
+    });
+    return h + "</tbody></table></div>";
+  }
 
-      el("copyBtn").disabled = false;
-      el("sendBtn").disabled = !el("flowUrl").value;
+  function section(title, body) { return has(body) ? "<h2>" + esc(title) + '</h2><div class="text">' + esc(body) + "</div>" : ""; }
 
-      var sets = ["1.1","1.3","1.5","1.8","1.10","1.13","1.15"].map(function (v) { return v + ":" + (supported(v) ? "yes" : "no"); }).join("  ");
-      el("diag").textContent =
-        "Host: " + mb.diagnostics.hostName + " " + mb.diagnostics.hostVersion + "\n" +
-        "Platform: " + Office.context.diagnostics.platform + "\n" +
-        "Mailbox API sets: " + sets + "\n" +
-        "Shared properties: " + JSON.stringify(shared) + "\n" +
-        "Graph URL: " + mb.restUrl;
+  function renderReady(c) {
+    var h = '<div class="card">';
+    h += '<div><span class="pill ' + urgencyClass(c.urgency) + '">' + esc(c.urgency || "No urgency") + "</span>" +
+         (has(c.cluster) ? '<span class="pill grey">' + esc(c.cluster) + "</span>" : "") +
+         (has(c.language) ? '<span class="pill grey">' + esc(c.language) + "</span>" : "") + "</div>";
+    h += '<div class="facts">' +
+         '<div><div class="k">Customer no.</div><div class="v">' + esc(c.customerNumber || "–") + "</div></div>" +
+         '<div><div class="k">Contract no.</div><div class="v">' + esc(c.contractNumber || "–") + "</div></div>" +
+         '<div><div class="k">Equipment no.</div><div class="v">' + esc(c.equipmentNumber || "–") + "</div></div>" +
+         '<div><div class="k">Days waiting</div><div class="v">' + esc(has(c.daysWaiting) ? c.daysWaiting : "–") + "</div></div>" +
+         "</div>";
+    h += section("Case summary", c.caseSummary);
+    h += section("Contract status", c.contractStatus);
+    h += "<h2>Invoices</h2>" + invoicesTable(c.invoices);
+    h += section("Conversation history", c.conversationHistory);
+    h += section("Confirmations", c.confirmationsSummary);
+    h += section("Note for the reply", c.historyNote);
+    if (has(c.suggestedReply)) {
+      h += '<details><summary>Suggested reply</summary><pre id="replyText">' + esc(c.suggestedReply) + "</pre>" +
+           '<div class="actions"><button id="copyReplyBtn" class="secondary">Copy reply</button></div></details>';
+    }
+    h += '<div class="footer"><span>Case #' + esc(c.caseId) + " · analysed " + esc(fmtDate(c.processedAt)) + "</span>" +
+         '<button id="rerunBtn" class="secondary">Re-run analysis</button></div>';
+    h += "</div>";
+    el("case").innerHTML = h;
+    var cr = el("copyReplyBtn");
+    if (cr) cr.onclick = function () { copyText(c.suggestedReply).then(function () { say("Reply copied."); }); };
+    el("rerunBtn").onclick = function () { analyse(true); };
+  }
+
+  function renderProcessing(polls) {
+    el("case").innerHTML = '<div class="card"><span class="spinner"></span><strong>Analysing this email…</strong>' +
+      '<p class="muted">Reading the email and attachments, checking previous conversations and invoices. This usually takes 30–90 seconds. You can keep working; the result appears here.</p>' +
+      (polls ? '<p class="muted">Checked ' + polls + " time(s).</p>" : "") + "</div>";
+  }
+
+  function renderFailed(c) {
+    el("case").innerHTML = '<div class="card"><span class="pill bad">Analysis failed</span>' +
+      '<p class="text">' + esc((c && c.error) || "The flow could not process this email.") + "</p>" +
+      '<div class="actions"><button id="retryBtn">Try again</button></div></div>';
+    el("retryBtn").onclick = function () { analyse(true); };
+  }
+
+  function renderMessage(pillClass, pillText, text, withRetry) {
+    el("case").innerHTML = '<div class="card"><span class="pill ' + pillClass + '">' + esc(pillText) + "</span>" +
+      '<p class="text">' + esc(text) + "</p>" +
+      (withRetry ? '<div class="actions"><button id="retryBtn">Try again</button></div>' : "") + "</div>";
+    if (withRetry) el("retryBtn").onclick = function () { analyse(false); };
+  }
+
+  // ---------- calling the flow ----------
+  function callFlow(force) {
+    var url = getFlowUrl();
+    var body = JSON.stringify({
+      mailbox: payload.mailbox, restId: payload.restId, internetMessageId: payload.internetMessageId,
+      subject: payload.subject, from: payload.from, received: payload.received, forceRefresh: !!force
+    });
+    return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var data = null; try { data = JSON.parse(t); } catch (e) {}
+          lastResponse = { http: r.status, body: data || t };
+          updateDiag();
+          return { http: r.status, data: data || {} };
+        });
+      });
+  }
+
+  function analyse(force) {
+    if (!payload) return;
+    if (!getFlowUrl()) {
+      renderMessage("warn", "Not set up", "Open Settings below and paste the URL of the Claim Lookup API flow.", false);
+      el("settingsBox").open = true;
+      return;
+    }
+    if (!payload.restId || !payload.internetMessageId) {
+      renderMessage("bad", "Missing IDs", "Outlook did not provide the IDs of this email. Try opening it again.", false);
+      return;
+    }
+    var token = ++runToken, polls = 0;
+    say("");
+    renderProcessing(0);
+
+    function step(forceNow) {
+      if (token !== runToken) return;  // user moved to another email
+      callFlow(forceNow).then(function (res) {
+        if (token !== runToken) return;
+        var st = String(res.data.status || "").toLowerCase();
+        if (res.http === 403 || st === "rejected") {
+          renderMessage("bad", "Not allowed", res.data.error || "This mailbox is not enabled for the analysis.", false);
+        } else if (res.http >= 400) {
+          renderMessage("bad", "Flow error " + res.http, (res.data && res.data.error && res.data.error.message) || "The flow returned an error.", true);
+        } else if (st === "ready") {
+          renderReady(res.data);
+        } else if (st === "failed") {
+          renderFailed(res.data);
+        } else {
+          polls++;
+          if (polls > MAX_POLLS) { renderMessage("warn", "Still processing", "The analysis is taking longer than expected. Try again in a minute.", true); return; }
+          renderProcessing(polls);
+          setTimeout(function () { step(false); }, POLL_MS);
+        }
+      }).catch(function (e) {
+        if (token !== runToken) return;
+        renderMessage("bad", "Could not reach the flow", "Network or browser security (CORS) error: " + e.message, true);
+      });
+    }
+    step(force);
+  }
+
+  // ---------- diagnostics ----------
+  function updateDiag() {
+    var mb = Office.context.mailbox;
+    var sets = ["1.1","1.3","1.5","1.8","1.10","1.13","1.15"].map(function (v) {
+      var s = false; try { s = Office.context.requirements.isSetSupported("Mailbox", v); } catch (e) {}
+      return v + ":" + (s ? "yes" : "no"); }).join("  ");
+    el("diag").textContent =
+      "Host: " + mb.diagnostics.hostName + " " + mb.diagnostics.hostVersion + "\n" +
+      "Platform: " + Office.context.diagnostics.platform + "\n" +
+      "Mailbox API sets: " + sets + "\n" +
+      "Flow URL set: " + (getFlowUrl() ? "yes" : "no") + "\n\n" +
+      "Last flow response:\n" + (lastResponse ? JSON.stringify(lastResponse, null, 2) : "–");
+  }
+
+  function load() {
+    runToken++;
+    lastResponse = null;
+    el("case").innerHTML = ""; say("");
+    readEmail().then(function (p) {
+      payload = p;
+      if (!p) { el("status").innerHTML = '<span class="pill bad">No email selected</span>'; return; }
+      renderEmail(p);
+      updateDiag();
+      analyse(false);
     });
   }
 
@@ -168,46 +323,21 @@
       el("status").innerHTML = '<span class="pill bad">Open this inside Outlook</span>';
       return;
     }
-    try {
-      var saved = Office.context.roamingSettings.get("flowUrl");
-      if (saved) el("flowUrl").value = saved;
-    } catch (e) {}
+    el("flowUrl").value = getFlowUrl();
 
-    render();
-
-    // Re-render when the user selects another email while the pane is pinned
-    try {
-      Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, function () { say(""); el("flowResult").hidden = true; render(); });
-    } catch (e) {}
-
-    el("copyBtn").onclick = function () {
-      copyText(JSON.stringify(payload, null, 2)).then(function () { say("Copied."); });
-    };
-
-    el("flowUrl").oninput = function () { el("sendBtn").disabled = !this.value || !payload; };
-
+    el("copyBtn").onclick = function () { copyText(JSON.stringify(payload, null, 2)).then(function () { say("IDs copied."); }); };
     el("saveUrlBtn").onclick = function () {
       var rs = Office.context.roamingSettings;
       rs.set("flowUrl", el("flowUrl").value.trim());
-      rs.saveAsync(function (r) { say(r.status === Office.AsyncResultStatus.Succeeded ? "URL saved." : "Could not save URL.", r.status === Office.AsyncResultStatus.Succeeded); });
+      rs.saveAsync(function (r) {
+        var good = r.status === Office.AsyncResultStatus.Succeeded;
+        say(good ? "URL saved." : "Could not save URL.", good);
+        if (good) { el("settingsBox").open = false; analyse(false); }
+      });
     };
 
-    el("sendBtn").onclick = function () {
-      var url = el("flowUrl").value.trim();
-      var out = el("flowResult");
-      el("sendBtn").disabled = true; say("Sending…");
-      fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
-        .then(function (r) { return r.text().then(function (t) { return { status: r.status, text: t }; }); })
-        .then(function (res) {
-          out.hidden = false;
-          var body = res.text;
-          try { body = JSON.stringify(JSON.parse(res.text), null, 2); } catch (e) {}
-          out.textContent = "HTTP " + res.status + "\n\n" + body;
-          say(res.status < 300 ? "Flow answered." : "Flow returned an error.", res.status < 300);
-        })
-        .catch(function (e) { out.hidden = false; out.textContent = String(e); say("Request failed (network or CORS).", false); })
-        .then(function () { el("sendBtn").disabled = false; });
-    };
+    try { Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, load); } catch (e) {}
+    load();
   });
 })();
 </script>
