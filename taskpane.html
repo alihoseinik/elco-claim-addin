@@ -48,6 +48,11 @@
   details summary { cursor:pointer; color:var(--muted); font-size:12px; }
   .spinner { display:inline-block; width:14px; height:14px; border:2px solid #ddd; border-top-color:var(--red); border-radius:50%; animation:spin 0.9s linear infinite; vertical-align:-2px; margin-right:6px; }
   @keyframes spin { to { transform:rotate(360deg); } }
+  .notice { border-radius:4px; padding:7px 9px; font-size:12px; margin-bottom:8px; }
+  .notice.warn { background:var(--warnbg); color:var(--warn); } .notice.bad { background:var(--badbg); color:var(--bad); }
+  .move { display:flex; gap:6px; margin:2px 0 4px; }
+  .move select { flex:1; min-width:0; font:inherit; padding:5px 4px; border:1px solid #bbb; border-radius:3px; background:#fff; }
+  #moveMsg { min-height:1em; margin-bottom:6px; font-size:12px; }
   .footer { margin-top:10px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
 </style>
 </head>
@@ -88,6 +93,7 @@
   var runToken = 0;        // increases when the selected email changes; stops old polling
   var lastResponse = null;
   var POLL_MS = 6000, MAX_POLLS = 50;
+  var STALE_DAYS = 7, STUCK_MINUTES = 15;
 
   function el(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -167,6 +173,7 @@
     "03": "03 Offerten/Bestätigungen", "04": "04 Wartungsvertrag", "05": "05 Adressänderungen",
     "06": "06 Postretouren", "07": "07 RG-Ablehnungen", "08": "08 Diverses", "99": "99 weitergel. Mails"
   };
+  var FOLDER_ORDER = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "99"];
   function folderName(v) {
     if (!has(v)) return "–";
     var m = String(v).trim().match(/^(\d{2})/);
@@ -201,13 +208,42 @@
 
   function section(title, body) { return has(body) ? "<h2>" + esc(title) + '</h2><div class="text">' + esc(body) + "</div>" : ""; }
 
-  function renderReady(c) {
+  function ageDays(iso) { var t = Date.parse(iso); return isNaN(t) ? null : (Date.now() - t) / 86400000; }
+  function ageText(days) {
+    if (days === null) return "";
+    if (days < 1 / 24) return "just now";
+    if (days < 1) return Math.round(days * 24) + " h ago";
+    var d = Math.floor(days); return d + (d === 1 ? " day ago" : " days ago");
+  }
+  function folderCode(v) { var m = String(v || "").trim().match(/^(\d{2})/); return m ? m[1] : ""; }
+
+  // info: { refreshing: bool, refreshFailed: bool }
+  function renderReady(c, info) {
+    info = info || {};
+    var age = ageDays(c.processedAt);
     var h = '<div class="card">';
+    if (info.refreshing) {
+      h += '<div class="notice warn" id="freshness"><span class="spinner"></span>This analysis is from ' + esc(ageText(age)) +
+           ". A fresh analysis is running in the background and will replace it when ready.</div>";
+    } else if (info.refreshFailed) {
+      h += '<div class="notice bad" id="freshness">This analysis is from ' + esc(ageText(age)) + ". The refresh failed, so newer emails or invoices may be missing.</div>";
+    } else if (age !== null && age > STALE_DAYS) {
+      h += '<div class="notice warn" id="freshness">This analysis is from ' + esc(ageText(age)) + ". Newer emails or invoices may be missing.</div>";
+    }
     h += '<div class="facts top">' +
          '<div><div class="k">Urgency</div><div class="v"><span class="pill ' + urgencyClass(c.urgency) + '">' + esc(c.urgency || "–") + "</span></div></div>" +
          '<div><div class="k">Language</div><div class="v">' + esc(languageName(c.language)) + "</div></div>" +
          '<div class="wide"><div class="k">Folder</div><div class="v">' + esc(folderName(c.cluster)) + "</div></div>" +
          "</div>";
+
+    // move to folder
+    var code = folderCode(c.cluster);
+    var opts = FOLDER_ORDER.map(function (k) {
+      return '<option value="' + k + '"' + (k === code ? " selected" : "") + ">" + esc(FOLDERS[k]) + (k === code ? "  (suggested)" : "") + "</option>";
+    }).join("");
+    h += '<div class="move"><select id="folderSel">' + (code ? "" : '<option value="" selected>Choose a folder…</option>') + opts + "</select>" +
+         '<button id="moveBtn"' + (code ? "" : " disabled") + ">Move</button></div><div id=\"moveMsg\" class=\"muted\"></div>";
+
     h += '<div class="facts">' +
          '<div><div class="k">Customer no.</div><div class="v">' + esc(c.customerNumber || "–") + "</div></div>" +
          '<div><div class="k">Contract no.</div><div class="v">' + esc(c.contractNumber || "–") + "</div></div>" +
@@ -224,13 +260,36 @@
       h += '<details><summary>Suggested reply</summary><pre id="replyText">' + esc(c.suggestedReply) + "</pre>" +
            '<div class="actions"><button id="copyReplyBtn" class="secondary">Copy reply</button></div></details>';
     }
-    h += '<div class="footer"><span>Case #' + esc(c.caseId) + " · analysed " + esc(fmtDate(c.processedAt)) + "</span>" +
+    h += '<div class="footer"><span>Case #' + esc(c.caseId) + " · analysed " + esc(fmtDate(c.processedAt)) +
+         (age !== null ? " (" + esc(ageText(age)) + ")" : "") + "</span>" +
          '<button id="rerunBtn" class="secondary">Re-run analysis</button></div>';
     h += "</div>";
     el("case").innerHTML = h;
+
     var cr = el("copyReplyBtn");
     if (cr) cr.onclick = function () { copyText(c.suggestedReply).then(function () { say("Reply copied."); }); };
     el("rerunBtn").onclick = function () { analyse(true); };
+    el("folderSel").onchange = function () { el("moveBtn").disabled = !this.value; };
+    el("moveBtn").onclick = function () { moveEmail(el("folderSel").value); };
+  }
+
+  function moveEmail(code) {
+    if (!code || !payload) return;
+    var btn = el("moveBtn"), msg = el("moveMsg"), token = runToken;
+    btn.disabled = true; el("folderSel").disabled = true;
+    msg.style.color = "var(--muted)"; msg.innerHTML = '<span class="spinner"></span>Moving to ' + esc(FOLDERS[code] || code) + "…";
+    callFlow(false, { action: "move", folderCode: code }).then(function (res) {
+      if (token !== runToken && !el("moveMsg")) return;
+      if (res.http === 200 && String(res.data.status).toLowerCase() === "moved") {
+        msg.style.color = "var(--ok)"; msg.textContent = "✓ Moved to " + (res.data.folder || FOLDERS[code]) + ".";
+      } else {
+        msg.style.color = "var(--bad)"; msg.textContent = (res.data && res.data.error) ? (res.data.error.message || res.data.error) : ("Move failed (HTTP " + res.http + ").");
+        btn.disabled = false; el("folderSel").disabled = false;
+      }
+    }).catch(function (e) {
+      msg.style.color = "var(--bad)"; msg.textContent = "Could not reach the flow: " + e.message;
+      btn.disabled = false; el("folderSel").disabled = false;
+    });
   }
 
   function renderProcessing(polls) {
@@ -254,13 +313,14 @@
   }
 
   // ---------- calling the flow ----------
-  function callFlow(force) {
+  function callFlow(force, extra) {
     var url = getFlowUrl();
-    var body = JSON.stringify({
+    var req = {
       mailbox: payload.mailbox, restId: payload.restId, internetMessageId: payload.internetMessageId,
       subject: payload.subject, from: payload.from, received: payload.received, forceRefresh: !!force
-    });
-    return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body })
+    };
+    if (extra) Object.keys(extra).forEach(function (k) { req[k] = extra[k]; });
+    return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) })
       .then(function (r) {
         return r.text().then(function (t) {
           var data = null; try { data = JSON.parse(t); } catch (e) {}
@@ -271,6 +331,10 @@
       });
   }
 
+  // Rules:
+  //  - a Ready analysis up to STALE_DAYS old is shown as it is;
+  //  - an older one is shown at once and refreshed in the background;
+  //  - a case stuck in Processing for more than STUCK_MINUTES is started again.
   function analyse(force) {
     if (!payload) return;
     if (!getFlowUrl()) {
@@ -283,6 +347,7 @@
       return;
     }
     var token = ++runToken, polls = 0;
+    var background = false, oldCase = null, restarted = false;
     say("");
     renderProcessing(0);
 
@@ -294,19 +359,36 @@
         if (res.http === 403 || st === "rejected") {
           renderMessage("bad", "Not allowed", res.data.error || "This mailbox is not enabled for the analysis.", false);
         } else if (res.http >= 400) {
-          renderMessage("bad", "Flow error " + res.http, (res.data && res.data.error && res.data.error.message) || "The flow returned an error.", true);
+          if (background) { renderReady(oldCase, { refreshFailed: true }); return; }
+          renderMessage("bad", "Flow error " + res.http, (res.data && res.data.error && (res.data.error.message || res.data.error)) || "The flow returned an error.", true);
         } else if (st === "ready") {
-          renderReady(res.data);
+          var age = ageDays(res.data.processedAt);
+          if (!background && !forceNow && age !== null && age > STALE_DAYS) {
+            background = true; oldCase = res.data; polls = 0;
+            renderReady(oldCase, { refreshing: true });
+            step(true);
+          } else {
+            renderReady(res.data);
+          }
         } else if (st === "failed") {
-          renderFailed(res.data);
+          if (background) renderReady(oldCase, { refreshFailed: true }); else renderFailed(res.data);
         } else {
+          var mins = ageDays(res.data.processedAt);
+          mins = mins === null ? null : mins * 1440;
+          if (!restarted && !forceNow && mins !== null && mins > STUCK_MINUTES) {
+            restarted = true; step(true); return;
+          }
           polls++;
-          if (polls > MAX_POLLS) { renderMessage("warn", "Still processing", "The analysis is taking longer than expected. Try again in a minute.", true); return; }
-          renderProcessing(polls);
+          if (polls > MAX_POLLS) {
+            if (background) { renderReady(oldCase, { refreshFailed: true }); return; }
+            renderMessage("warn", "Still processing", "The analysis is taking longer than expected. Try again in a minute.", true); return;
+          }
+          if (!background) renderProcessing(polls);
           setTimeout(function () { step(false); }, POLL_MS);
         }
       }).catch(function (e) {
         if (token !== runToken) return;
+        if (background) { renderReady(oldCase, { refreshFailed: true }); return; }
         renderMessage("bad", "Could not reach the flow", "Network or browser security (CORS) error: " + e.message, true);
       });
     }
