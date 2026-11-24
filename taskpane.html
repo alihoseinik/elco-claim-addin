@@ -44,6 +44,7 @@
   .muted { color:var(--muted); font-size:12px; }
   #msg { margin-top:8px; font-size:12px; min-height:1em; }
   pre { background:var(--soft); padding:8px; font-size:11px; white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto; margin:6px 0 0; }
+  #replyText { font-family:inherit; font-size:12.5px; line-height:1.45; }
   details { margin-top:12px; }
   details summary { cursor:pointer; color:var(--muted); font-size:12px; }
   .spinner { display:inline-block; width:14px; height:14px; border:2px solid #ddd; border-top-color:var(--red); border-radius:50%; animation:spin 0.9s linear infinite; vertical-align:-2px; margin-right:6px; }
@@ -237,16 +238,16 @@
          '<div><div class="k">Equipment no.</div><div class="v">' + esc(c.equipmentNumber || "–") + "</div></div>" +
          '<div><div class="k">Days waiting</div><div class="v">' + esc(has(c.daysWaiting) ? c.daysWaiting : "–") + "</div></div>" +
          "</div>";
+    if (has(c.suggestedReply)) {
+      h += '<h2>Suggested reply</h2><pre id="replyText">' + esc(c.suggestedReply) + "</pre>" +
+           '<div class="actions"><button id="copyReplyBtn" class="secondary">Copy reply</button></div>';
+    }
     h += section("Case summary", c.caseSummary);
     h += section("Contract status", c.contractStatus);
     h += "<h2>Invoices</h2>" + invoicesTable(c.invoices);
     h += section("Conversation history", c.conversationHistory);
     h += section("Confirmations", c.confirmationsSummary);
     h += section("Note for the reply", c.historyNote);
-    if (has(c.suggestedReply)) {
-      h += '<details><summary>Suggested reply</summary><pre id="replyText">' + esc(c.suggestedReply) + "</pre>" +
-           '<div class="actions"><button id="copyReplyBtn" class="secondary">Copy reply</button></div></details>';
-    }
     h += '<div class="footer"><span>Case #' + esc(c.caseId) + " · analysed " + esc(fmtDate(c.processedAt)) +
          (age !== null ? " (" + esc(ageText(age)) + ")" : "") + "</span>" +
          '<button id="rerunBtn" class="secondary">Re-run analysis</button></div>';
