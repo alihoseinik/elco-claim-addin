@@ -50,9 +50,6 @@
   @keyframes spin { to { transform:rotate(360deg); } }
   .notice { border-radius:4px; padding:7px 9px; font-size:12px; margin-bottom:8px; }
   .notice.warn { background:var(--warnbg); color:var(--warn); } .notice.bad { background:var(--badbg); color:var(--bad); }
-  .move { display:flex; gap:6px; margin:2px 0 4px; }
-  .move select { flex:1; min-width:0; font:inherit; padding:5px 4px; border:1px solid #bbb; border-radius:3px; background:#fff; }
-  #moveMsg { min-height:1em; margin-bottom:6px; font-size:12px; }
   .footer { margin-top:10px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
 </style>
 </head>
@@ -173,7 +170,6 @@
     "03": "03 Offerten/Bestätigungen", "04": "04 Wartungsvertrag", "05": "05 Adressänderungen",
     "06": "06 Postretouren", "07": "07 RG-Ablehnungen", "08": "08 Diverses", "99": "99 weitergel. Mails"
   };
-  var FOLDER_ORDER = ["00", "01", "02", "03", "04", "05", "06", "07", "08", "99"];
   function folderName(v) {
     if (!has(v)) return "–";
     var m = String(v).trim().match(/^(\d{2})/);
@@ -215,7 +211,6 @@
     if (days < 1) return Math.round(days * 24) + " h ago";
     var d = Math.floor(days); return d + (d === 1 ? " day ago" : " days ago");
   }
-  function folderCode(v) { var m = String(v || "").trim().match(/^(\d{2})/); return m ? m[1] : ""; }
 
   // info: { refreshing: bool, refreshFailed: bool }
   function renderReady(c, info) {
@@ -235,14 +230,6 @@
          '<div><div class="k">Language</div><div class="v">' + esc(languageName(c.language)) + "</div></div>" +
          '<div class="wide"><div class="k">Folder</div><div class="v">' + esc(folderName(c.cluster)) + "</div></div>" +
          "</div>";
-
-    // move to folder
-    var code = folderCode(c.cluster);
-    var opts = FOLDER_ORDER.map(function (k) {
-      return '<option value="' + k + '"' + (k === code ? " selected" : "") + ">" + esc(FOLDERS[k]) + (k === code ? "  (suggested)" : "") + "</option>";
-    }).join("");
-    h += '<div class="move"><select id="folderSel">' + (code ? "" : '<option value="" selected>Choose a folder…</option>') + opts + "</select>" +
-         '<button id="moveBtn"' + (code ? "" : " disabled") + ">Move</button></div><div id=\"moveMsg\" class=\"muted\"></div>";
 
     h += '<div class="facts">' +
          '<div><div class="k">Customer no.</div><div class="v">' + esc(c.customerNumber || "–") + "</div></div>" +
@@ -269,27 +256,6 @@
     var cr = el("copyReplyBtn");
     if (cr) cr.onclick = function () { copyText(c.suggestedReply).then(function () { say("Reply copied."); }); };
     el("rerunBtn").onclick = function () { analyse(true); };
-    el("folderSel").onchange = function () { el("moveBtn").disabled = !this.value; };
-    el("moveBtn").onclick = function () { moveEmail(el("folderSel").value); };
-  }
-
-  function moveEmail(code) {
-    if (!code || !payload) return;
-    var btn = el("moveBtn"), msg = el("moveMsg"), token = runToken;
-    btn.disabled = true; el("folderSel").disabled = true;
-    msg.style.color = "var(--muted)"; msg.innerHTML = '<span class="spinner"></span>Moving to ' + esc(FOLDERS[code] || code) + "…";
-    callFlow(false, { action: "move", folderCode: code }).then(function (res) {
-      if (token !== runToken && !el("moveMsg")) return;
-      if (res.http === 200 && String(res.data.status).toLowerCase() === "moved") {
-        msg.style.color = "var(--ok)"; msg.textContent = "✓ Moved to " + (res.data.folder || FOLDERS[code]) + ".";
-      } else {
-        msg.style.color = "var(--bad)"; msg.textContent = (res.data && res.data.error) ? (res.data.error.message || res.data.error) : ("Move failed (HTTP " + res.http + ").");
-        btn.disabled = false; el("folderSel").disabled = false;
-      }
-    }).catch(function (e) {
-      msg.style.color = "var(--bad)"; msg.textContent = "Could not reach the flow: " + e.message;
-      btn.disabled = false; el("folderSel").disabled = false;
-    });
   }
 
   function renderProcessing(polls) {
