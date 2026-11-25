@@ -58,6 +58,7 @@
   .feedback textarea { resize:vertical; }
   .feedback .hint { margin:0 0 8px; font-size:11.5px; }
   #fbMsg { min-height:1em; margin-top:6px; font-size:12px; }
+  .timer { margin:8px 0 0; font-size:13px; }
   .footer { margin-top:10px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
 </style>
 </head>
@@ -99,7 +100,8 @@
   var payload = null;      // identifiers of the open email
   var runToken = 0;        // increases when the selected email changes; stops old polling
   var lastResponse = null;
-  var POLL_MS = 6000, MAX_POLLS = 50;
+  var POLL_MS = 5000, MAX_POLLS = 60;
+  var clockTimer = null, clockStart = 0;
   var STALE_DAYS = 7, STUCK_MINUTES = 15;
 
   function el(id) { return document.getElementById(id); }
@@ -235,7 +237,7 @@
     var h = '<div class="card">';
     if (info.refreshing) {
       h += '<div class="notice warn" id="freshness"><span class="spinner"></span>This analysis is from ' + esc(ageText(age)) +
-           ". A fresh analysis is running in the background and will replace it when ready.</div>";
+           ". A fresh analysis is running in the background (<span id=\"elapsed\">" + elapsedText() + "</span>) and will replace it when ready.</div>";
     } else if (info.refreshFailed) {
       h += '<div class="notice bad" id="freshness">This analysis is from ' + esc(ageText(age)) + ". The refresh failed, so newer emails or invoices may be missing.</div>";
     } else if (age !== null && age > STALE_DAYS) {
@@ -265,7 +267,7 @@
     }
     h += feedbackHtml(c);
     h += '<div class="footer"><span>Snapshot #' + esc(c.caseId) + " · analysed " + esc(fmtDate(c.processedAt)) +
-         (age !== null ? " (" + esc(ageText(age)) + ")" : "") + "</span>" +
+         (age !== null ? " (" + esc(ageText(age)) + ")" : "") + (info.took ? " · ready in " + esc(info.took) : "") + "</span>" +
          '<button id="rerunBtn" class="secondary">Re-run analysis</button></div>';
     h += "</div>";
     el("case").innerHTML = h;
@@ -334,10 +336,18 @@
       .catch(function (e) { btn.disabled = false; msg.style.color = "var(--bad)"; msg.textContent = "Could not reach the feedback flow: " + e.message; });
   }
 
-  function renderProcessing(polls) {
+  function elapsedText() { return Math.round((Date.now() - clockStart) / 1000) + " s"; }
+  function startClock() {
+    stopClock(); clockStart = Date.now();
+    clockTimer = setInterval(function () { var e = el("elapsed"); if (e) e.textContent = elapsedText(); }, 1000);
+  }
+  function stopClock() { if (clockTimer) { clearInterval(clockTimer); clockTimer = null; } }
+
+  function renderProcessing() {
+    if (el("elapsed") && !el("freshness")) return;  // already showing, the clock updates it
     el("case").innerHTML = '<div class="card"><span class="spinner"></span><strong>Analysing this email…</strong>' +
-      '<p class="muted">Reading the email and attachments, checking previous conversations and invoices. This usually takes 30–90 seconds. You can keep working; the result appears here.</p>' +
-      (polls ? '<p class="muted">Checked ' + polls + " time(s).</p>" : "") + "</div>";
+      '<p class="muted">Reading the email and attachments, checking previous conversations and invoices. You can keep working; the result appears here.</p>' +
+      '<p class="timer">Elapsed: <strong id="elapsed">' + elapsedText() + '</strong> <span class="muted">· usually 30–90 s</span></p></div>';
   }
 
   function renderFailed(c) {
@@ -389,15 +399,17 @@
       return;
     }
     var token = ++runToken, polls = 0;
-    var background = false, oldCase = null, restarted = false;
+    var background = false, oldCase = null, restarted = false, waited = false;
     say("");
-    renderProcessing(0);
+    startClock();
+    renderProcessing();
 
     function step(forceNow) {
       if (token !== runToken) return;  // user moved to another email
       callFlow(forceNow).then(function (res) {
         if (token !== runToken) return;
         var st = String(res.data.status || "").toLowerCase();
+        if (st !== "processing" && !(st === "ready" && !background && !forceNow && ageDays(res.data.processedAt) > STALE_DAYS)) stopClock();
         if (res.http === 403 || st === "rejected") {
           renderMessage("bad", "Not allowed", res.data.error || "This mailbox is not enabled for the analysis.", false);
         } else if (res.http >= 400) {
@@ -410,7 +422,7 @@
             renderReady(oldCase, { refreshing: true });
             step(true);
           } else {
-            renderReady(res.data);
+            renderReady(res.data, waited || background ? { took: elapsedText() } : {});
           }
         } else if (st === "failed") {
           if (background) renderReady(oldCase, { refreshFailed: true }); else renderFailed(res.data);
@@ -420,16 +432,17 @@
           if (!restarted && !forceNow && mins !== null && mins > STUCK_MINUTES) {
             restarted = true; step(true); return;
           }
-          polls++;
+          polls++; waited = true;
           if (polls > MAX_POLLS) {
             if (background) { renderReady(oldCase, { refreshFailed: true }); return; }
             renderMessage("warn", "Still processing", "The analysis is taking longer than expected. Try again in a minute.", true); return;
           }
-          if (!background) renderProcessing(polls);
+          if (!background) renderProcessing();
           setTimeout(function () { step(false); }, POLL_MS);
         }
       }).catch(function (e) {
         if (token !== runToken) return;
+        stopClock();
         if (background) { renderReady(oldCase, { refreshFailed: true }); return; }
         renderMessage("bad", "Could not reach the flow", "Network or browser security (CORS) error: " + e.message, true);
       });
@@ -453,6 +466,7 @@
 
   function load() {
     runToken++;
+    stopClock();
     lastResponse = null;
     el("case").innerHTML = ""; say("");
     readEmail().then(function (p) {
