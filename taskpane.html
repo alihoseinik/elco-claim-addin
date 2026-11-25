@@ -205,6 +205,38 @@
     if (u === "urgent") return "bad"; if (u === "high") return "warn"; if (u === "medium") return "info"; return "grey";
   }
 
+  function shortText(v, n) { v = String(v == null ? "" : v).replace(/\s+/g, " ").trim(); return v.length > n ? v.slice(0, n - 1) + "…" : v; }
+
+  // Earlier emails with this sender, newest first (built by the flow from the mailbox search)
+  function historyTable(list, fallbackText) {
+    if (!list || !list.length) {
+      return has(fallbackText) ? '<div class="text">' + esc(fallbackText) + "</div>" : '<p class="muted">No earlier emails with this sender.</p>';
+    }
+    var rows = list.slice().sort(function (a, b) { return String(b.date || "").localeCompare(String(a.date || "")); });
+    var h = '<div class="tablewrap"><table><thead><tr><th>Date</th><th>From</th><th>Subject</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      var fromCustomer = String(r.direction || "").indexOf("customer") >= 0;
+      h += '<tr><td class="nowrap">' + esc(String(r.date || "").slice(0, 10)) + "</td>" +
+           '<td><span class="pill ' + (fromCustomer ? "info" : "grey") + '">' + (fromCustomer ? "Customer" : "ELCO") + "</span></td>" +
+           "<td>" + esc(shortText(r.subject, 80)) + (has(r.preview) ? '<div class="sub">' + esc(shortText(r.preview, 160)) + "</div>" : "") + "</td></tr>";
+    });
+    return h + "</tbody></table></div>";
+  }
+
+  // Confirmations from the history prompt (confirmations_table); falls back to its text
+  function confirmationsTable(list, fallbackText) {
+    if (!list || !list.length) {
+      return has(fallbackText) ? '<div class="text">' + esc(fallbackText) + "</div>" : '<p class="muted">No confirmations found.</p>';
+    }
+    var h = '<div class="tablewrap"><table><thead><tr><th>Confirmation</th><th>Date</th><th>Type</th><th>Invoice</th></tr></thead><tbody>';
+    list.forEach(function (r) {
+      h += "<tr><td>" + esc(r.confirmation_number || r.confirmation || r.number || "") + '</td><td class="nowrap">' + esc(r.date || "") +
+           "</td><td>" + esc(r.type || "") + (has(r.status) ? '<div class="sub">' + esc(r.status) + "</div>" : "") +
+           "</td><td>" + esc(r.related_invoice || r.invoice || "") + "</td></tr>";
+    });
+    return h + "</tbody></table></div>";
+  }
+
   function invoicesTable(list) {
     if (!list || !list.length) return '<p class="muted">No invoices found for this customer or equipment.</p>';
     var h = '<div class="tablewrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Type</th><th class="num">Amount</th></tr></thead><tbody>';
@@ -258,9 +290,8 @@
     h += section("Case summary", c.caseSummary);
     h += section("Contract status", c.contractStatus);
     h += "<h2>Invoices</h2>" + invoicesTable(c.invoices);
-    h += section("Conversation history", c.conversationHistory);
-    h += section("Confirmations", c.confirmationsSummary);
-    h += section("Note for the reply", c.historyNote);
+    h += "<h2>Conversation history</h2>" + historyTable(c.history, c.conversationHistory);
+    h += "<h2>Confirmations</h2>" + confirmationsTable(c.confirmations, c.confirmationsSummary);
     if (has(c.suggestedReply)) {
       h += '<details class="reply"><summary>Suggested reply</summary><pre id="replyText">' + esc(c.suggestedReply) + "</pre>" +
            '<div class="actions"><button id="copyReplyBtn" class="secondary">Copy reply</button></div></details>';
