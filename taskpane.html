@@ -286,14 +286,13 @@
          '<div><div class="k">Customer no.</div><div class="v">' + esc(c.customerNumber || "–") + "</div></div>" +
          '<div><div class="k">Contract no.</div><div class="v">' + esc(c.contractNumber || "–") + "</div></div>" +
          '<div><div class="k">Equipment no.</div><div class="v">' + esc(c.equipmentNumber || "–") + "</div></div>" +
-         '<div><div class="k">Days waiting</div><div class="v">' + esc(has(c.daysWaiting) ? c.daysWaiting : "–") + "</div></div>" +
          "</div>";
     h += section("Case summary", c.caseSummary);
     h += section("Contract status", c.contractStatus);
     h += "<h2>Invoices</h2>" + invoicesTable(c.invoices);
+    h += "<h2>Confirmations</h2>" + confirmationsTable(c.confirmations, c.confirmationsSummary);
     h += '<details class="fold"><summary>Previous emails' + (c.history && c.history.length ? " (" + c.history.length + ")" : "") + "</summary>" +
          historyTable(c.history, c.conversationHistory) + "</details>";
-    h += "<h2>Confirmations</h2>" + confirmationsTable(c.confirmations, c.confirmationsSummary);
     if (has(c.suggestedReply)) {
       h += '<details class="reply"><summary>Suggested reply</summary><pre id="replyText">' + esc(c.suggestedReply) + "</pre>" +
            '<div class="actions"><button id="copyReplyBtn" class="secondary">Copy reply</button></div></details>';
