@@ -289,8 +289,8 @@
          "</div>";
     h += section("Case summary", c.caseSummary);
     h += section("Contract status", c.contractStatus);
-    h += "<h2>Invoices</h2>" + invoicesTable(c.invoices);
-    h += "<h2>Confirmations</h2>" + confirmationsTable(c.confirmations, c.confirmationsSummary);
+    h += "<h2>Recent invoices</h2>" + invoicesTable(c.invoices);
+    h += "<h2>Recent confirmations</h2>" + confirmationsTable(c.confirmations, c.confirmationsSummary);
     h += '<details class="fold"><summary>Previous emails' + (c.history && c.history.length ? " (" + c.history.length + ")" : "") + "</summary>" +
          historyTable(c.history, c.conversationHistory) + "</details>";
     if (has(c.suggestedReply)) {
