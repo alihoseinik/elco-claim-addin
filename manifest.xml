@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ELCO Claim Case Lookup - TEST add-in
+  ELCO Customer Snapshot - TEST add-in
   Hosted on GitHub Pages: https://alihoseinik.github.io/elco-claim-addin/
 -->
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
@@ -9,11 +9,11 @@
            xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
            xsi:type="MailApp">
   <Id>f9132a90-1a25-491a-9c09-5b1f264edd63</Id>
-  <Version>1.0.1.0</Version>
+  <Version>1.0.2.0</Version>
   <ProviderName>Elcotherm AG - Service Performance</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Claim Case Lookup (Test)"/>
-  <Description DefaultValue="Test add-in: shows the IDs of the open email so the claim workflow can find it exactly."/>
+  <DisplayName DefaultValue="Customer Snapshot (Test)"/>
+  <Description DefaultValue="Shows what we know about the customer next to the open email: case analysis, invoices, history and a suggested reply."/>
   <IconUrl DefaultValue="https://alihoseinik.github.io/elco-claim-addin/assets/icon-64.png"/>
   <HighResolutionIconUrl DefaultValue="https://alihoseinik.github.io/elco-claim-addin/assets/icon-128.png"/>
   <SupportUrl DefaultValue="https://alihoseinik.github.io/elco-claim-addin/taskpane.html"/>
@@ -88,11 +88,11 @@
         <bt:Url id="CommandsUrl" DefaultValue="https://alihoseinik.github.io/elco-claim-addin/commands.html"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GroupLabel" DefaultValue="ELCO Claims"/>
-        <bt:String id="ButtonLabel" DefaultValue="Claim Lookup"/>
+        <bt:String id="GroupLabel" DefaultValue="ELCO Service"/>
+        <bt:String id="ButtonLabel" DefaultValue="Customer Snapshot"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="ButtonTooltip" DefaultValue="Show the IDs of this email for the claim workflow."/>
+        <bt:String id="ButtonTooltip" DefaultValue="Show the Customer Snapshot for this email: case analysis, invoices and history."/>
       </bt:LongStrings>
     </Resources>
 
@@ -145,11 +145,11 @@
         <bt:Url id="CommandsUrl" DefaultValue="https://alihoseinik.github.io/elco-claim-addin/commands.html"/>
         </bt:Urls>
         <bt:ShortStrings>
-          <bt:String id="GroupLabel" DefaultValue="ELCO Claims"/>
-          <bt:String id="ButtonLabel" DefaultValue="Claim Lookup"/>
+          <bt:String id="GroupLabel" DefaultValue="ELCO Service"/>
+          <bt:String id="ButtonLabel" DefaultValue="Customer Snapshot"/>
         </bt:ShortStrings>
         <bt:LongStrings>
-          <bt:String id="ButtonTooltip" DefaultValue="Show the IDs of this email for the claim workflow."/>
+          <bt:String id="ButtonTooltip" DefaultValue="Show the Customer Snapshot for this email: case analysis, invoices and history."/>
         </bt:LongStrings>
       </Resources>
     </VersionOverrides>

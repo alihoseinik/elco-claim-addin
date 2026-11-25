@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claim Case Lookup</title>
+<title>Customer Snapshot</title>
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <style>
   :root { --red:#c8102e; --ink:#1f1f1f; --muted:#666; --line:#e6e6e6; --soft:#f6f6f6;
@@ -63,8 +63,8 @@
 </head>
 <body>
 <header>
-  <h1>Claim Case Lookup</h1>
-  <p>Case analysis for the open email</p>
+  <h1>Customer Snapshot</h1>
+  <p>Everything we know about this customer, next to the email</p>
 </header>
 <main>
   <div id="status"><span class="pill bad">Waiting for Outlook…</span></div>
@@ -178,7 +178,7 @@
     el("copyBtn").disabled = false;
   }
 
-  // ---------- case card ----------
+  // ---------- customer snapshot ----------
   var FOLDERS = {
     "00": "00 Reklamationen", "01": "01 EGT/Verwaltungswechsel", "02": "02 Kündigungen",
     "03": "03 Offerten/Bestätigungen", "04": "04 Wartungsvertrag", "05": "05 Adressänderungen",
@@ -264,7 +264,7 @@
            '<div class="actions"><button id="copyReplyBtn" class="secondary">Copy reply</button></div></details>';
     }
     h += feedbackHtml(c);
-    h += '<div class="footer"><span>Case #' + esc(c.caseId) + " · analysed " + esc(fmtDate(c.processedAt)) +
+    h += '<div class="footer"><span>Snapshot #' + esc(c.caseId) + " · analysed " + esc(fmtDate(c.processedAt)) +
          (age !== null ? " (" + esc(ageText(age)) + ")" : "") + "</span>" +
          '<button id="rerunBtn" class="secondary">Re-run analysis</button></div>';
     h += "</div>";
